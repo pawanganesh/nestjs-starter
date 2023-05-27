@@ -19,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: IJWTPayload) {
     if (payload.type !== TokenType.ACCESS_TOKEN) throw new UnauthorizedException();
 
-    const user = await this.dataSource.getRepository(User).findOne({ where: { id: payload.sub } });
+    const user = await this.dataSource.getRepository(User).findOne({ where: { id: payload.sub, verified: true } });
 
     if (!user) throw new UnauthorizedException();
 

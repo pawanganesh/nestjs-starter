@@ -25,6 +25,9 @@ export class User {
   @Column({ type: 'text', select: false })
   password: string;
 
+  @Column({ type: 'boolean', default: false })
+  verified: boolean;
+
   @CreateDateColumn({ select: false })
   created_at: Date;
 

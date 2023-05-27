@@ -5,10 +5,19 @@ import { User } from '../user/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { JWT_ACCESS_SECRET, JWT_REFRESH_SECRET } from 'src/constant';
 import { IJWTPayload, TokenType } from './interfaces/auth.interface';
+import { DataSource } from 'typeorm';
+import { OTP } from '../otp/entities/otp.entity';
+import { generateOTP } from '../helpers/otp-generator';
+import { OTPType } from '../otp/enums/otp.enum';
+import { sendMail } from '../helpers/mail';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly userRepository: UserRepository, private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly jwtService: JwtService,
+    private readonly dataSource: DataSource,
+  ) {}
 
   async #generateTokens(user_id: string): Promise<{ access_token: string; refresh_token: string }> {
     const access_token_payload: IJWTPayload = { sub: user_id, type: TokenType.ACCESS_TOKEN };
@@ -21,17 +30,50 @@ export class AuthService {
   }
 
   async createUser(payload: TraditionalUserRegisterDto) {
-    const user_row = await this.userRepository.findOne({ where: { email: payload.email.toLowerCase() } });
-    if (user_row) throw new BadRequestException({ success: false, message: 'Email already exists.' });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const user = new User();
-    user.full_name = payload.full_name;
-    user.email = payload.email.toLowerCase();
-    user.password = payload.password;
+    try {
+      const user_row = await queryRunner.manager
+        .getRepository(User)
+        .findOne({ where: { email: payload.email.toLowerCase() } });
+      if (user_row) throw new BadRequestException({ success: false, message: 'Email already exists.' });
 
-    await this.userRepository.save(user);
+      const user = new User();
+      user.full_name = payload.full_name;
+      user.email = payload.email.toLowerCase();
+      user.password = payload.password;
 
-    return { success: true, message: 'User created.' };
+      await queryRunner.manager.getRepository(User).save(user);
+
+      const code = generateOTP(6);
+      await queryRunner.manager
+        .getRepository(OTP)
+        .save({ code, user_id: user.id, otp_type: OTPType.EMAIL_VERIFICATION });
+
+      const text = `
+      Hello ${user.full_name},
+
+      Please verify your email by entering the following code:
+      ${code}
+
+      Note: This code will expire in 15 minutes.
+
+      Thank you,
+      The NestJS Starter Team
+      `;
+      sendMail({ to: user.email, subject: 'Email Verification', text });
+
+      await queryRunner.commitTransaction();
+
+      return { success: true, message: 'User created.' };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException({ success: false, message: 'Failed to create user.' });
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async loginUser(payload: TraditionalUserLoginDto) {
