@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import helmet from 'helmet';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -9,16 +10,18 @@ async function bootstrap() {
 
   // Swagger docs
   if (NODE_ENV !== 'production') {
+    // Swagger configuration
     const options = new DocumentBuilder()
-      .setTitle('NESTJS STARTER')
-      .setDescription('API docs')
+      .setTitle('Your API')
+      .setDescription('API description')
       .setVersion('1.0')
-      .addBearerAuth()
+      .addBearerAuth() // Enable bearer token authorization
       .build();
-
     const document = SwaggerModule.createDocument(app, options);
     SwaggerModule.setup('docs', app, document);
   }
+
+  app.use(helmet());
 
   await app.listen(PORT);
 }
