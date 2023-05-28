@@ -3,6 +3,7 @@ import { OTPType } from './enums/otp.enum';
 import { DataSource } from 'typeorm';
 import { OTP } from './entities/otp.entity';
 import { generateOTP } from 'src/helpers/otp-generator';
+import { Printer } from 'src/helpers/printer';
 
 @Injectable()
 export class OtpService {
